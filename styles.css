@@ -1,7 +1,4 @@
-*{
-  box-sizing:border-box;
-  font-family:system-ui;
-}
+*{ box-sizing:border-box; font-family:system-ui; }
 
 body{
   margin:0;
@@ -16,10 +13,6 @@ header{
   margin-bottom:12px;
 }
 
-#liveStatus{
-  font-size:.85rem;
-}
-
 .online{ color:#16a34a; }
 .offline{ color:#dc2626; }
 
@@ -31,32 +24,18 @@ header{
   box-shadow:0 4px 12px rgba(0,0,0,.08);
 }
 
-h3{
-  margin-top:0;
-}
-
 input,select,button{
   width:100%;
   padding:10px;
   margin-top:8px;
   border-radius:8px;
   border:1px solid #d1d5db;
-  font-size:1rem;
 }
 
-button{
-  background:#2563eb;
-  color:white;
-  border:none;
-}
+button{ background:#2563eb; color:white; border:none; }
+button.danger{ background:#dc2626; }
 
-button.danger{
-  background:#dc2626;
-}
-
-.input-group{
-  position:relative;
-}
+.input-group{ position:relative; }
 
 .suggestion-box{
   position:absolute;
@@ -66,7 +45,7 @@ button.danger{
   background:white;
   border:1px solid #d1d5db;
   border-radius:8px;
-  max-height:220px;
+  max-height:200px;
   overflow:auto;
   display:none;
   z-index:1000;
@@ -77,28 +56,9 @@ button.danger{
   cursor:pointer;
 }
 
-.suggestion-box div:hover{
-  background:#f3f4f6;
-}
+.suggestion-box div:hover{ background:#f3f4f6; }
 
-mark{
-  background:#fde68a;
-  padding:0 2px;
-}
-
-.bus-tag{
-  font-size:.75rem;
-  color:#2563eb;
-  margin-left:6px;
-}
-
-.bus-summary{
-  margin:8px 0;
-  display:grid;
-  grid-template-columns:repeat(2,1fr);
-  gap:6px;
-  font-size:.9rem;
-}
+mark{ background:#fde68a; }
 
 .bus{
   background:white;
