@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bus Decker</title>
+
 <link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
@@ -14,6 +16,7 @@
   <span id="liveStatus" class="offline">● Offline</span>
 </header>
 
+<!-- ASSIGN -->
 <section class="card">
   <h3>Assign Person</h3>
 
@@ -34,6 +37,7 @@
   <button onclick="assign()">Assign</button>
 </section>
 
+<!-- UNASSIGN -->
 <section class="card">
   <h3>Unassign Person</h3>
 
@@ -45,6 +49,7 @@
   <button class="danger" onclick="unassign()">Unassign</button>
 </section>
 
+<!-- ADD -->
 <section class="card">
   <h3>Add New Person</h3>
   <input id="newName" placeholder="Name">
@@ -52,12 +57,25 @@
   <button onclick="addPerson()">Add Person</button>
 </section>
 
+<!-- SUMMARY -->
 <section class="card">
   <h3>Summary</h3>
   <div>Total People: <strong id="total">0</strong></div>
   <div>Assigned: <strong id="assigned">0</strong></div>
+  <div>Unassigned: <strong id="unassigned">0</strong></div>
+
+  <div class="bus-summary">
+    <div>Bus 1: <strong id="b1">0</strong></div>
+    <div>Bus 2: <strong id="b2">0</strong></div>
+    <div>Bus 3: <strong id="b3">0</strong></div>
+    <div>Bus 4: <strong id="b4">0</strong></div>
+    <div>Bus 5: <strong id="b5">0</strong></div>
+  </div>
+
+  <canvas id="pieChart"></canvas>
 </section>
 
+<!-- BUS LIST -->
 <section id="busList"></section>
 
 <script>
@@ -67,6 +85,7 @@ const API =
 
 /* ================= STATE ================= */
 let people = [];
+let pieChart = null;
 
 /* ================= LOAD ================= */
 async function loadData() {
@@ -76,19 +95,39 @@ async function loadData() {
 
     people = Array.isArray(json.data) ? json.data : [];
     render();
+    setupAutocompletes();
 
     liveStatus.textContent = "● Online";
     liveStatus.className = "online";
   } catch (e) {
-    console.error("Load failed:", e);
+    console.error(e);
     liveStatus.textContent = "● Offline";
     liveStatus.className = "offline";
   }
 }
 
 /* ================= AUTOCOMPLETE ================= */
-function autocomplete(input, box, filterFn, selectFn) {
-  input.addEventListener("input", () => {
+function setupAutocompletes() {
+  setupAutocomplete(
+    nameInput,
+    assignSuggestions,
+    p => true,
+    p => {
+      nameInput.value = p.Name;
+      busSelect.value = p.Bus || "";
+    }
+  );
+
+  setupAutocomplete(
+    unassignInput,
+    unassignSuggestions,
+    p => p.Bus,
+    p => unassignInput.value = p.Name
+  );
+}
+
+function setupAutocomplete(input, box, conditionFn, selectFn) {
+  input.oninput = () => {
     const q = input.value.toLowerCase();
     box.innerHTML = "";
 
@@ -97,8 +136,8 @@ function autocomplete(input, box, filterFn, selectFn) {
       return;
     }
 
-    const matches = people.filter(p =>
-      p.Name && filterFn(p, q)
+    const matches = people.filter(
+      p => p.Name && conditionFn(p) && p.Name.toLowerCase().includes(q)
     );
 
     if (!matches.length) {
@@ -108,7 +147,8 @@ function autocomplete(input, box, filterFn, selectFn) {
 
     matches.slice(0, 15).forEach(p => {
       const div = document.createElement("div");
-      div.textContent = p.Name + (p.Bus ? ` (Bus ${p.Bus})` : "");
+      div.innerHTML = highlightMatch(p.Name, q) +
+        (p.Bus ? ` <span class="bus-tag">Bus ${p.Bus}</span>` : "");
       div.onclick = () => {
         selectFn(p);
         box.style.display = "none";
@@ -117,25 +157,20 @@ function autocomplete(input, box, filterFn, selectFn) {
     });
 
     box.style.display = "block";
-  });
+  };
 }
 
-autocomplete(
-  nameInput,
-  assignSuggestions,
-  (p, q) => p.Name.toLowerCase().includes(q),
-  p => {
-    nameInput.value = p.Name;
-    busSelect.value = p.Bus || "";
-  }
-);
-
-autocomplete(
-  unassignInput,
-  unassignSuggestions,
-  (p, q) => p.Bus && p.Name.toLowerCase().includes(q),
-  p => unassignInput.value = p.Name
-);
+function highlightMatch(text, q) {
+  const i = text.toLowerCase().indexOf(q);
+  if (i === -1) return text;
+  return (
+    text.slice(0, i) +
+    "<mark>" +
+    text.slice(i, i + q.length) +
+    "</mark>" +
+    text.slice(i + q.length)
+  );
+}
 
 document.addEventListener("click", e => {
   if (!e.target.closest(".input-group")) {
@@ -146,9 +181,29 @@ document.addEventListener("click", e => {
 
 /* ================= RENDER ================= */
 function render() {
-  total.textContent = people.length;
-  assigned.textContent = people.filter(p => p.Bus).length;
+  const totalPeople = people.length;
+  const assignedPeople = people.filter(p => p.Bus).length;
 
+  total.textContent = totalPeople;
+  assigned.textContent = assignedPeople;
+  unassigned.textContent = totalPeople - assignedPeople;
+
+  const busCounts = {1:0,2:0,3:0,4:0,5:0};
+  people.forEach(p => {
+    if (busCounts[p.Bus]) busCounts[p.Bus]++;
+  });
+
+  b1.textContent = busCounts[1];
+  b2.textContent = busCounts[2];
+  b3.textContent = busCounts[3];
+  b4.textContent = busCounts[4];
+  b5.textContent = busCounts[5];
+
+  renderPie(busCounts, totalPeople - assignedPeople);
+  renderBusList(busCounts);
+}
+
+function renderBusList() {
   const map = {};
   people.forEach(p => {
     const k = p.Bus ? `Bus ${p.Bus}` : "Unassigned";
@@ -167,7 +222,40 @@ function render() {
   });
 }
 
-/* ================= ACTIONS (GET ONLY) ================= */
+/* ================= PIE CHART ================= */
+function renderPie(busCounts, unassignedCount) {
+  const data = [
+    unassignedCount,
+    busCounts[1],
+    busCounts[2],
+    busCounts[3],
+    busCounts[4],
+    busCounts[5]
+  ];
+
+  if (!pieChart) {
+    pieChart = new Chart(pieChartEl, {
+      type: "pie",
+      data: {
+        labels: ["Unassigned","Bus 1","Bus 2","Bus 3","Bus 4","Bus 5"],
+        datasets: [{
+          data,
+          backgroundColor: [
+            "#9ca3af","#2563eb","#16a34a","#f59e0b","#7c3aed","#dc2626"
+          ]
+        }]
+      },
+      options: {
+        plugins: { legend: { position: "bottom" } }
+      }
+    });
+  } else {
+    pieChart.data.datasets[0].data = data;
+    pieChart.update();
+  }
+}
+
+/* ================= ACTIONS ================= */
 function assign() {
   fetch(`${API}?action=assign&name=${encodeURIComponent(nameInput.value)}&bus=${busSelect.value}`)
     .then(loadData);
@@ -188,6 +276,7 @@ function addPerson() {
 }
 
 /* ================= INIT ================= */
+const pieChartEl = document.getElementById("pieChart");
 loadData();
 setInterval(loadData, 5000);
 </script>
