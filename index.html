@@ -3,273 +3,205 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Team Outing Bus Decker</title>
+<title>Bus Decker</title>
 
 <link rel="stylesheet" href="styles.css">
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
 
 <header>
-  <h1>Team Outing Bus Decker</h1>
-  <h2>Smart Assignment Dashboard</h2>
+  <h1>🚌 Bus Decker</h1>
+  <span id="liveStatus">● Offline</span>
 </header>
 
 <!-- ASSIGN -->
-<div class="card">
+<section class="card">
   <h3>Assign Person</h3>
-  <div class="controls-container">
-    <div class="input-group">
-      <label>Name</label>
-      <input id="nameInput" type="text" placeholder="Type name..." autocomplete="off">
-      <div id="suggestions" class="suggestion-box"></div>
-    </div>
-
-    <div>
-      <label>Bus</label>
-      <select id="busSelect">
-        <option value="">Select Bus</option>
-        <option value="1">Bus 1</option>
-        <option value="2">Bus 2</option>
-        <option value="3">Bus 3</option>
-        <option value="4">Bus 4</option>
-        <option value="5">Bus 5</option>
-      </select>
-    </div>
-
-    <button id="assignBtn" class="success">Assign</button>
-  </div>
-</div>
+  <input id="nameInput" placeholder="Name">
+  <select id="busSelect">
+    <option value="">Select Bus</option>
+    <option value="1">Bus 1</option>
+    <option value="2">Bus 2</option>
+    <option value="3">Bus 3</option>
+    <option value="4">Bus 4</option>
+    <option value="5">Bus 5</option>
+  </select>
+  <button onclick="assign()">Assign</button>
+</section>
 
 <!-- UNASSIGN -->
-<div class="card">
+<section class="card">
   <h3>Unassign Person</h3>
-  <div class="controls-container">
-    <div class="input-group">
-      <label>Name</label>
-      <input id="unassignInput" type="text" placeholder="Search assigned..." autocomplete="off">
-      <div id="unassignSuggestions" class="suggestion-box"></div>
-    </div>
+  <input id="unassignInput" placeholder="Name">
+  <button class="danger" onclick="unassign()">Unassign</button>
+</section>
 
-    <div>
-      <label>Current Bus</label>
-      <input id="currentBus" disabled>
-    </div>
-
-    <button id="unassignBtn" class="danger">Unassign</button>
-  </div>
-</div>
+<!-- ADD NEW -->
+<section class="card">
+  <h3>Add New Person</h3>
+  <input id="newName" placeholder="Name">
+  <input id="newMobile" placeholder="Mobile">
+  <button onclick="addPerson()">Add Person</button>
+</section>
 
 <!-- SUMMARY -->
-<div class="card summary">
-  <div class="metrics">
-    <div>Total: <span id="total">0</span></div>
-    <div>Assigned: <span id="assigned">0</span></div>
-    <div>Unassigned: <span id="unassigned">0</span></div>
-  </div>
-  <canvas id="pieChart" width="120" height="120"></canvas>
-</div>
+<section class="card">
+  <h3>Summary</h3>
+  <div>Total People: <strong id="total">0</strong></div>
+  <div>Assigned: <strong id="assigned">0</strong></div>
+</section>
 
-<!-- BUS GRID -->
-<div class="card">
-  <h3>Bus Details</h3>
-  <div id="busGrid" class="bus-grid"></div>
-</div>
+<!-- BUS LIST -->
+<section id="busList"></section>
 
 <script>
 /* ================= CONFIG ================= */
-const DEFAULT_EXCEL = "people.xlsx";
+const API_URL =
+  "https://script.google.com/macros/s/AKfycbzOwfnrdkY5_T6fPg4JYKpVi8YkZsts_Te_S0FyiKAsI1sJpiePh1JpDxXLJIS0fdnk5w/exec";
 
 /* ================= STATE ================= */
-let people = [];
-let chart;
+let lastUpdatedAt = "";
 
-/* ================= ELEMENTS ================= */
-const nameInput = document.getElementById("nameInput");
-const suggestions = document.getElementById("suggestions");
-const busSelect = document.getElementById("busSelect");
-const assignBtn = document.getElementById("assignBtn");
+/* ================= LOAD DATA ================= */
+async function loadData() {
+  try {
+    const res = await fetch(API_URL);
+    const json = await res.json();
 
-const unassignInput = document.getElementById("unassignInput");
-const unassignSuggestions = document.getElementById("unassignSuggestions");
-const currentBus = document.getElementById("currentBus");
-const unassignBtn = document.getElementById("unassignBtn");
+    if (lastUpdatedAt && lastUpdatedAt !== json.updatedAt) {
+      showLiveUpdate();
+    }
 
-const totalEl = document.getElementById("total");
-const assignedEl = document.getElementById("assigned");
-const unassignedEl = document.getElementById("unassigned");
-const busGrid = document.getElementById("busGrid");
-const pieCanvas = document.getElementById("pieChart");
+    lastUpdatedAt = json.updatedAt;
+    render(json.data);
 
-/* ================= LOAD EXCEL ================= */
-async function loadExcel() {
-  const res = await fetch(DEFAULT_EXCEL);
-  if (!res.ok) {
-    alert("Excel file not found");
-    return;
+    setOnline();
+  } catch (e) {
+    setOffline();
+    console.error("Load failed", e);
   }
-  const buf = await res.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array" });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
-  people = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-  console.log("People loaded:", people.length);
-  render();
 }
 
-/* ================= AUTOCOMPLETE (ASSIGN) ================= */
-nameInput.addEventListener("input", function () {
-  const q = this.value.trim().toLowerCase();
-  suggestions.innerHTML = "";
+/* ================= LIVE STATUS ================= */
+function showLiveUpdate() {
+  const s = document.getElementById("liveStatus");
+  s.textContent = "● Live update";
+  s.className = "live";
+  setTimeout(() => {
+    s.textContent = "● Online";
+    s.className = "online";
+  }, 2000);
+}
 
-  if (!q) {
-    suggestions.style.display = "none";
-    return;
-  }
+function setOnline() {
+  const s = document.getElementById("liveStatus");
+  s.textContent = "● Online";
+  s.className = "online";
+}
 
-  const matches = people.filter(p =>
-    p.Name && p.Name.toLowerCase().includes(q)
-  );
-
-  if (!matches.length) {
-    suggestions.style.display = "none";
-    return;
-  }
-
-  matches.slice(0, 15).forEach(p => {
-    const div = document.createElement("div");
-    div.textContent = p.Name;
-    div.onclick = () => {
-      nameInput.value = p.Name;
-      busSelect.value = p.Bus || "";
-      suggestions.style.display = "none";
-    };
-    suggestions.appendChild(div);
-  });
-
-  suggestions.style.display = "block";
-});
-
-/* ================= AUTOCOMPLETE (UNASSIGN) ================= */
-unassignInput.addEventListener("input", function () {
-  const q = this.value.trim().toLowerCase();
-  unassignSuggestions.innerHTML = "";
-  currentBus.value = "";
-
-  if (!q) {
-    unassignSuggestions.style.display = "none";
-    return;
-  }
-
-  const matches = people.filter(p =>
-    p.Bus && p.Name.toLowerCase().includes(q)
-  );
-
-  if (!matches.length) {
-    unassignSuggestions.style.display = "none";
-    return;
-  }
-
-  matches.slice(0, 15).forEach(p => {
-    const div = document.createElement("div");
-    div.textContent = `${p.Name} (Bus ${p.Bus})`;
-    div.onclick = () => {
-      unassignInput.value = p.Name;
-      currentBus.value = `Bus ${p.Bus}`;
-      unassignSuggestions.style.display = "none";
-    };
-    unassignSuggestions.appendChild(div);
-  });
-
-  unassignSuggestions.style.display = "block";
-});
-
-/* ================= ASSIGN ================= */
-assignBtn.onclick = () => {
-  const p = people.find(x =>
-    x.Name.toLowerCase() === nameInput.value.toLowerCase()
-  );
-  if (!p || !busSelect.value) {
-    alert("Select valid name and bus");
-    return;
-  }
-  p.Bus = busSelect.value;
-  nameInput.value = "";
-  busSelect.value = "";
-  render();
-};
-
-/* ================= UNASSIGN ================= */
-unassignBtn.onclick = () => {
-  const p = people.find(x =>
-    x.Name.toLowerCase() === unassignInput.value.toLowerCase()
-  );
-  if (!p || !p.Bus) {
-    alert("Person not assigned");
-    return;
-  }
-  p.Bus = "";
-  unassignInput.value = "";
-  currentBus.value = "";
-  render();
-};
+function setOffline() {
+  const s = document.getElementById("liveStatus");
+  s.textContent = "● Offline";
+  s.className = "offline";
+}
 
 /* ================= RENDER ================= */
-function render() {
-  const buses = {0:[],1:[],2:[],3:[],4:[],5:[]};
-  people.forEach(p => buses[p.Bus || 0].push(p));
+function render(data) {
+  document.getElementById("total").textContent = data.length;
+  document.getElementById("assigned").textContent =
+    data.filter(p => p.Bus).length;
 
-  totalEl.textContent = people.length;
-  assignedEl.textContent = people.filter(p => p.Bus).length;
-  unassignedEl.textContent = buses[0].length;
-
-  if (chart) chart.destroy();
-  chart = new Chart(pieCanvas, {
-    type: "pie",
-    data: {
-      labels: ["U","1","2","3","4","5"],
-      datasets: [{
-        data: [
-          buses[0].length,
-          buses[1].length,
-          buses[2].length,
-          buses[3].length,
-          buses[4].length,
-          buses[5].length
-        ],
-        backgroundColor: [
-          "#9ca3af","#2563eb","#16a34a",
-          "#f59e0b","#7c3aed","#dc2626"
-        ]
-      }]
-    },
-    options: { responsive:false, plugins:{ legend:{ display:false } } }
+  const buses = {};
+  data.forEach(p => {
+    const key = p.Bus ? `Bus ${p.Bus}` : "Unassigned";
+    buses[key] ??= [];
+    buses[key].push(p.Name);
   });
 
-  busGrid.innerHTML = "";
-  [1,2,3,4,5].forEach(i => {
-    busGrid.innerHTML += `
-      <div class="bus bus${i}">
-        <strong>Bus ${i} (${buses[i].length})</strong>
-        ${buses[i].map(p => `<div>${p.Name}</div>`).join("")}
-      </div>`;
+  const busList = document.getElementById("busList");
+  busList.innerHTML = "";
+
+  Object.keys(buses).forEach(bus => {
+    busList.innerHTML += `
+      <div class="bus">
+        <strong>${bus} (${buses[bus].length})</strong>
+        ${buses[bus].map(n => `<div>${n}</div>`).join("")}
+      </div>
+    `;
   });
 }
 
-/* ================= HIDE DROPDOWNS ================= */
-document.addEventListener("click", e => {
-  if (!e.target.closest(".input-group")) {
-    suggestions.style.display = "none";
-    unassignSuggestions.style.display = "none";
+/* ================= ACTIONS ================= */
+function assign() {
+  const name = nameInput.value.trim();
+  const bus = busSelect.value;
+
+  if (!name || !bus) {
+    alert("Enter name and bus");
+    return;
   }
-});
+
+  fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "assign",
+      name,
+      bus
+    })
+  }).then(() => {
+    nameInput.value = "";
+    busSelect.value = "";
+    loadData();
+  });
+}
+
+function unassign() {
+  const name = unassignInput.value.trim();
+  if (!name) {
+    alert("Enter name");
+    return;
+  }
+
+  fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "unassign",
+      name
+    })
+  }).then(() => {
+    unassignInput.value = "";
+    loadData();
+  });
+}
+
+function addPerson() {
+  const name = newName.value.trim();
+  const mobile = newMobile.value.trim();
+
+  if (!name) {
+    alert("Name required");
+    return;
+  }
+
+  fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "add",
+      name,
+      mobile
+    })
+  }).then(() => {
+    newName.value = "";
+    newMobile.value = "";
+    loadData();
+  });
+}
 
 /* ================= INIT ================= */
-loadExcel();
+loadData();
+setInterval(loadData, 5000); // live refresh every 5s
 </script>
 
 </body>
 </html>
-
