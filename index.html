@@ -18,10 +18,9 @@
   <h2>Smart Assignment Dashboard</h2>
 </header>
 
-<!-- Assign -->
+<!-- ASSIGN -->
 <div class="card">
   <h3>Assign Person</h3>
-
   <div class="controls-container">
     <div class="input-group">
       <label>Name</label>
@@ -45,10 +44,9 @@
   </div>
 </div>
 
-<!-- Unassign -->
+<!-- UNASSIGN -->
 <div class="card">
   <h3>Unassign Person</h3>
-
   <div class="controls-container">
     <div class="input-group">
       <label>Name</label>
@@ -65,7 +63,7 @@
   </div>
 </div>
 
-<!-- Summary -->
+<!-- SUMMARY -->
 <div class="card summary">
   <div class="metrics">
     <div>Total: <span id="total">0</span></div>
@@ -75,21 +73,21 @@
   <canvas id="pieChart" width="120" height="120"></canvas>
 </div>
 
-<!-- Bus Grid -->
+<!-- BUS GRID -->
 <div class="card">
   <h3>Bus Details</h3>
   <div id="busGrid" class="bus-grid"></div>
 </div>
 
 <script>
-/* ---------------- CONFIG ---------------- */
-const DEFAULT_EXCEL = "people.xlsx";
+/* ================= CONFIG ================= */
+const DEFAULT_EXCEL = "data/people.xlsx";
 
-/* ---------------- STATE ---------------- */
+/* ================= STATE ================= */
 let people = [];
 let chart;
 
-/* ---------------- ELEMENTS ---------------- */
+/* ================= ELEMENTS ================= */
 const nameInput = document.getElementById("nameInput");
 const suggestions = document.getElementById("suggestions");
 const busSelect = document.getElementById("busSelect");
@@ -106,28 +104,24 @@ const unassignedEl = document.getElementById("unassigned");
 const busGrid = document.getElementById("busGrid");
 const pieCanvas = document.getElementById("pieChart");
 
-/* ---------------- LOAD EXCEL ---------------- */
+/* ================= LOAD EXCEL ================= */
 async function loadExcel() {
-  try {
-    const res = await fetch(DEFAULT_EXCEL);
-    if (!res.ok) throw new Error("Excel not found");
-
-    const buf = await res.arrayBuffer();
-    const wb = XLSX.read(buf, { type: "array" });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    people = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-
-    console.log("People loaded:", people.length);
-    render();
-  } catch (e) {
-    console.error("Excel load failed:", e);
-    alert("Default Excel not loaded. Check console.");
+  const res = await fetch(DEFAULT_EXCEL);
+  if (!res.ok) {
+    alert("Excel file not found");
+    return;
   }
+  const buf = await res.arrayBuffer();
+  const wb = XLSX.read(buf, { type: "array" });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  people = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+  console.log("People loaded:", people.length);
+  render();
 }
 
-/* ---------------- AUTOCOMPLETE (ASSIGN) ---------------- */
-nameInput.oninput = () => {
-  const q = nameInput.value.trim().toLowerCase();
+/* ================= AUTOCOMPLETE (ASSIGN) ================= */
+nameInput.addEventListener("input", function () {
+  const q = this.value.trim().toLowerCase();
   suggestions.innerHTML = "";
 
   if (!q) {
@@ -145,22 +139,22 @@ nameInput.oninput = () => {
   }
 
   matches.slice(0, 15).forEach(p => {
-    const d = document.createElement("div");
-    d.textContent = p.Name;
-    d.onclick = () => {
+    const div = document.createElement("div");
+    div.textContent = p.Name;
+    div.onclick = () => {
       nameInput.value = p.Name;
       busSelect.value = p.Bus || "";
       suggestions.style.display = "none";
     };
-    suggestions.appendChild(d);
+    suggestions.appendChild(div);
   });
 
   suggestions.style.display = "block";
-};
+});
 
-/* ---------------- AUTOCOMPLETE (UNASSIGN) ---------------- */
-unassignInput.oninput = () => {
-  const q = unassignInput.value.trim().toLowerCase();
+/* ================= AUTOCOMPLETE (UNASSIGN) ================= */
+unassignInput.addEventListener("input", function () {
+  const q = this.value.trim().toLowerCase();
   unassignSuggestions.innerHTML = "";
   currentBus.value = "";
 
@@ -179,54 +173,50 @@ unassignInput.oninput = () => {
   }
 
   matches.slice(0, 15).forEach(p => {
-    const d = document.createElement("div");
-    d.textContent = `${p.Name} (Bus ${p.Bus})`;
-    d.onclick = () => {
+    const div = document.createElement("div");
+    div.textContent = `${p.Name} (Bus ${p.Bus})`;
+    div.onclick = () => {
       unassignInput.value = p.Name;
       currentBus.value = `Bus ${p.Bus}`;
       unassignSuggestions.style.display = "none";
     };
-    unassignSuggestions.appendChild(d);
+    unassignSuggestions.appendChild(div);
   });
 
   unassignSuggestions.style.display = "block";
-};
+});
 
-/* ---------------- ASSIGN ---------------- */
+/* ================= ASSIGN ================= */
 assignBtn.onclick = () => {
   const p = people.find(x =>
     x.Name.toLowerCase() === nameInput.value.toLowerCase()
   );
-
   if (!p || !busSelect.value) {
     alert("Select valid name and bus");
     return;
   }
-
   p.Bus = busSelect.value;
   nameInput.value = "";
   busSelect.value = "";
   render();
 };
 
-/* ---------------- UNASSIGN ---------------- */
+/* ================= UNASSIGN ================= */
 unassignBtn.onclick = () => {
   const p = people.find(x =>
     x.Name.toLowerCase() === unassignInput.value.toLowerCase()
   );
-
   if (!p || !p.Bus) {
     alert("Person not assigned");
     return;
   }
-
   p.Bus = "";
   unassignInput.value = "";
   currentBus.value = "";
   render();
 };
 
-/* ---------------- RENDER ---------------- */
+/* ================= RENDER ================= */
 function render() {
   const buses = {0:[],1:[],2:[],3:[],4:[],5:[]};
   people.forEach(p => buses[p.Bus || 0].push(p));
@@ -236,12 +226,12 @@ function render() {
   unassignedEl.textContent = buses[0].length;
 
   if (chart) chart.destroy();
-  chart = new Chart(pieCanvas,{
-    type:"pie",
-    data:{
-      labels:["U","1","2","3","4","5"],
-      datasets:[{
-        data:[
+  chart = new Chart(pieCanvas, {
+    type: "pie",
+    data: {
+      labels: ["U","1","2","3","4","5"],
+      datasets: [{
+        data: [
           buses[0].length,
           buses[1].length,
           buses[2].length,
@@ -249,23 +239,26 @@ function render() {
           buses[4].length,
           buses[5].length
         ],
-        backgroundColor:["#9ca3af","#2563eb","#16a34a","#f59e0b","#7c3aed","#dc2626"]
+        backgroundColor: [
+          "#9ca3af","#2563eb","#16a34a",
+          "#f59e0b","#7c3aed","#dc2626"
+        ]
       }]
     },
-    options:{responsive:false,plugins:{legend:{display:false}}}
+    options: { responsive:false, plugins:{ legend:{ display:false } } }
   });
 
-  busGrid.innerHTML="";
-  [1,2,3,4,5].forEach(i=>{
-    busGrid.innerHTML+=`
+  busGrid.innerHTML = "";
+  [1,2,3,4,5].forEach(i => {
+    busGrid.innerHTML += `
       <div class="bus bus${i}">
         <strong>Bus ${i} (${buses[i].length})</strong>
-        ${buses[i].map(p=>`<div>${p.Name}</div>`).join("")}
+        ${buses[i].map(p => `<div>${p.Name}</div>`).join("")}
       </div>`;
   });
 }
 
-/* ---------------- HIDE DROPDOWNS ---------------- */
+/* ================= HIDE DROPDOWNS ================= */
 document.addEventListener("click", e => {
   if (!e.target.closest(".input-group")) {
     suggestions.style.display = "none";
@@ -273,7 +266,7 @@ document.addEventListener("click", e => {
   }
 });
 
-/* ---------------- INIT ---------------- */
+/* ================= INIT ================= */
 loadExcel();
 </script>
 
