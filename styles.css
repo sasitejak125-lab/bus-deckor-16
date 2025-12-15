@@ -9,7 +9,6 @@ body{
   background:#f4f6f8;
 }
 
-/* HEADER */
 header{
   display:flex;
   justify-content:space-between;
@@ -23,12 +22,7 @@ header{
 
 .online{ color:#16a34a; }
 .offline{ color:#dc2626; }
-.live{
-  color:#2563eb;
-  font-weight:600;
-}
 
-/* CARDS */
 .card{
   background:white;
   padding:14px;
@@ -41,7 +35,6 @@ h3{
   margin-top:0;
 }
 
-/* INPUTS */
 input,select,button{
   width:100%;
   padding:10px;
@@ -61,7 +54,6 @@ button.danger{
   background:#dc2626;
 }
 
-/* AUTOCOMPLETE */
 .input-group{
   position:relative;
 }
@@ -89,7 +81,6 @@ button.danger{
   background:#f3f4f6;
 }
 
-/* BUS LIST */
 .bus{
   background:white;
   padding:12px;
