@@ -93,7 +93,7 @@ input[disabled]{
 .bus4{background:#7c3aed}
 .bus5{background:#dc2626}
 
-/* 🔥 AUTOCOMPLETE FIXES */
+/* 🔥 AUTOCOMPLETE (CRITICAL) */
 .input-group{
   position:relative;
 }
