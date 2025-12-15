@@ -4,7 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bus Decker</title>
-
 <link rel="stylesheet" href="styles.css">
 </head>
 
@@ -15,7 +14,6 @@
   <span id="liveStatus" class="offline">● Offline</span>
 </header>
 
-<!-- ASSIGN -->
 <section class="card">
   <h3>Assign Person</h3>
 
@@ -36,7 +34,6 @@
   <button onclick="assign()">Assign</button>
 </section>
 
-<!-- UNASSIGN -->
 <section class="card">
   <h3>Unassign Person</h3>
 
@@ -48,7 +45,6 @@
   <button class="danger" onclick="unassign()">Unassign</button>
 </section>
 
-<!-- ADD NEW -->
 <section class="card">
   <h3>Add New Person</h3>
   <input id="newName" placeholder="Name">
@@ -56,74 +52,47 @@
   <button onclick="addPerson()">Add Person</button>
 </section>
 
-<!-- SUMMARY -->
 <section class="card">
   <h3>Summary</h3>
   <div>Total People: <strong id="total">0</strong></div>
   <div>Assigned: <strong id="assigned">0</strong></div>
 </section>
 
-<!-- BUS LIST -->
 <section id="busList"></section>
 
 <script>
 /* ================= CONFIG ================= */
-const API_URL =
+const API =
   "https://script.google.com/macros/s/AKfycbzOwfnrdkY5_T6fPg4JYKpVi8YkZsts_Te_S0FyiKAsI1sJpiePh1JpDxXLJIS0fdnk5w/exec";
 
 /* ================= STATE ================= */
 let people = [];
-let lastUpdatedAt = "";
 
-/* ================= LOAD DATA ================= */
+/* ================= LOAD ================= */
 async function loadData() {
   try {
-    const res = await fetch(API_URL);
+    const res = await fetch(API);
     const json = await res.json();
 
-    if (!json || !Array.isArray(json.data)) {
-      throw new Error("Invalid data format");
-    }
+    people = Array.isArray(json.data) ? json.data : [];
+    render();
 
-    if (lastUpdatedAt && lastUpdatedAt !== json.updatedAt) {
-      showLiveUpdate();
-    }
-
-    lastUpdatedAt = json.updatedAt;
-    people = json.data;
-
-    render();      // 🔥 render uses global people[]
-    setOnline();
+    liveStatus.textContent = "● Online";
+    liveStatus.className = "online";
   } catch (e) {
-    console.error("Fetch/render failed:", e);
-    setOffline();
+    console.error("Load failed:", e);
+    liveStatus.textContent = "● Offline";
+    liveStatus.className = "offline";
   }
 }
 
-/* ================= STATUS ================= */
-function setOnline() {
-  liveStatus.textContent = "● Online";
-  liveStatus.className = "online";
-}
-
-function setOffline() {
-  liveStatus.textContent = "● Offline";
-  liveStatus.className = "offline";
-}
-
-function showLiveUpdate() {
-  liveStatus.textContent = "● Live update";
-  liveStatus.className = "live";
-  setTimeout(setOnline, 2000);
-}
-
 /* ================= AUTOCOMPLETE ================= */
-function setupAutocomplete(input, box, filterFn, onSelect) {
+function autocomplete(input, box, filterFn, selectFn) {
   input.addEventListener("input", () => {
-    const q = input.value.trim().toLowerCase();
+    const q = input.value.toLowerCase();
     box.innerHTML = "";
 
-    if (!q || people.length === 0) {
+    if (!q) {
       box.style.display = "none";
       return;
     }
@@ -141,7 +110,7 @@ function setupAutocomplete(input, box, filterFn, onSelect) {
       const div = document.createElement("div");
       div.textContent = p.Name + (p.Bus ? ` (Bus ${p.Bus})` : "");
       div.onclick = () => {
-        onSelect(p);
+        selectFn(p);
         box.style.display = "none";
       };
       box.appendChild(div);
@@ -151,8 +120,7 @@ function setupAutocomplete(input, box, filterFn, onSelect) {
   });
 }
 
-/* Assign autocomplete */
-setupAutocomplete(
+autocomplete(
   nameInput,
   assignSuggestions,
   (p, q) => p.Name.toLowerCase().includes(q),
@@ -162,17 +130,13 @@ setupAutocomplete(
   }
 );
 
-/* Unassign autocomplete */
-setupAutocomplete(
+autocomplete(
   unassignInput,
   unassignSuggestions,
   (p, q) => p.Bus && p.Name.toLowerCase().includes(q),
-  p => {
-    unassignInput.value = p.Name;
-  }
+  p => unassignInput.value = p.Name
 );
 
-/* Hide dropdowns */
 document.addEventListener("click", e => {
   if (!e.target.closest(".input-group")) {
     assignSuggestions.style.display = "none";
@@ -182,80 +146,45 @@ document.addEventListener("click", e => {
 
 /* ================= RENDER ================= */
 function render() {
-  // 🔥 Defensive guard
-  if (!Array.isArray(people)) return;
-
   total.textContent = people.length;
   assigned.textContent = people.filter(p => p.Bus).length;
 
-  const buses = {};
+  const map = {};
   people.forEach(p => {
-    const key = p.Bus ? `Bus ${p.Bus}` : "Unassigned";
-    buses[key] ??= [];
-    buses[key].push(p.Name);
+    const k = p.Bus ? `Bus ${p.Bus}` : "Unassigned";
+    map[k] ??= [];
+    map[k].push(p.Name);
   });
 
   busList.innerHTML = "";
-  Object.keys(buses).forEach(bus => {
+  Object.keys(map).forEach(b => {
     busList.innerHTML += `
       <div class="bus">
-        <strong>${bus} (${buses[bus].length})</strong>
-        ${buses[bus].map(n => `<div>${n}</div>`).join("")}
+        <strong>${b} (${map[b].length})</strong>
+        ${map[b].map(n => `<div>${n}</div>`).join("")}
       </div>
     `;
   });
 }
 
-/* ================= ACTIONS ================= */
+/* ================= ACTIONS (GET ONLY) ================= */
 function assign() {
-  if (!nameInput.value || !busSelect.value) {
-    alert("Select name and bus");
-    return;
-  }
-
-  fetch(API_URL, {
-    method: "POST",
-    body: JSON.stringify({
-      action: "assign",
-      name: nameInput.value,
-      bus: busSelect.value
-    })
-  }).then(loadData);
+  fetch(`${API}?action=assign&name=${encodeURIComponent(nameInput.value)}&bus=${busSelect.value}`)
+    .then(loadData);
 }
 
 function unassign() {
-  if (!unassignInput.value) {
-    alert("Select name");
-    return;
-  }
-
-  fetch(API_URL, {
-    method: "POST",
-    body: JSON.stringify({
-      action: "unassign",
-      name: unassignInput.value
-    })
-  }).then(loadData);
+  fetch(`${API}?action=unassign&name=${encodeURIComponent(unassignInput.value)}`)
+    .then(loadData);
 }
 
 function addPerson() {
-  if (!newName.value) {
-    alert("Name required");
-    return;
-  }
-
-  fetch(API_URL, {
-    method: "POST",
-    body: JSON.stringify({
-      action: "add",
-      name: newName.value,
-      mobile: newMobile.value
-    })
-  }).then(() => {
-    newName.value = "";
-    newMobile.value = "";
-    loadData();
-  });
+  fetch(`${API}?action=add&name=${encodeURIComponent(newName.value)}&mobile=${encodeURIComponent(newMobile.value)}`)
+    .then(() => {
+      newName.value = "";
+      newMobile.value = "";
+      loadData();
+    });
 }
 
 /* ================= INIT ================= */
