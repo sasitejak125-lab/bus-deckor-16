@@ -18,12 +18,15 @@ header{
 }
 
 #liveStatus{
-  font-size:.8rem;
+  font-size:.85rem;
 }
 
-.online{color:#16a34a;}
-.offline{color:#dc2626;}
-.live{color:#2563eb;font-weight:600;}
+.online{ color:#16a34a; }
+.offline{ color:#dc2626; }
+.live{
+  color:#2563eb;
+  font-weight:600;
+}
 
 /* CARDS */
 .card{
@@ -56,6 +59,34 @@ button{
 
 button.danger{
   background:#dc2626;
+}
+
+/* AUTOCOMPLETE */
+.input-group{
+  position:relative;
+}
+
+.suggestion-box{
+  position:absolute;
+  top:100%;
+  left:0;
+  width:100%;
+  background:white;
+  border:1px solid #d1d5db;
+  border-radius:8px;
+  max-height:220px;
+  overflow:auto;
+  display:none;
+  z-index:1000;
+}
+
+.suggestion-box div{
+  padding:8px 12px;
+  cursor:pointer;
+}
+
+.suggestion-box div:hover{
+  background:#f3f4f6;
 }
 
 /* BUS LIST */
