@@ -19,9 +19,8 @@
 <!-- ASSIGN -->
 <section class="card">
   <h3>Assign Person</h3>
-
   <div class="input-group">
-    <input id="nameInput" placeholder="Search name">
+    <input id="nameInput" placeholder="Search name" autocomplete="off">
     <div id="assignSuggestions" class="suggestion-box"></div>
   </div>
 
@@ -40,12 +39,10 @@
 <!-- UNASSIGN -->
 <section class="card">
   <h3>Unassign Person</h3>
-
   <div class="input-group">
-    <input id="unassignInput" placeholder="Search assigned">
+    <input id="unassignInput" placeholder="Search assigned" autocomplete="off">
     <div id="unassignSuggestions" class="suggestion-box"></div>
   </div>
-
   <button class="danger" onclick="unassign()">Unassign</button>
 </section>
 
@@ -60,17 +57,9 @@
 <!-- SUMMARY -->
 <section class="card">
   <h3>Summary</h3>
-  <div>Total People: <strong id="total">0</strong></div>
+  <div>Total: <strong id="total">0</strong></div>
   <div>Assigned: <strong id="assigned">0</strong></div>
   <div>Unassigned: <strong id="unassigned">0</strong></div>
-
-  <div class="bus-summary">
-    <div>Bus 1: <strong id="b1">0</strong></div>
-    <div>Bus 2: <strong id="b2">0</strong></div>
-    <div>Bus 3: <strong id="b3">0</strong></div>
-    <div>Bus 4: <strong id="b4">0</strong></div>
-    <div>Bus 5: <strong id="b5">0</strong></div>
-  </div>
 
   <canvas id="pieChart"></canvas>
 </section>
@@ -87,15 +76,14 @@ const API =
 let people = [];
 let pieChart = null;
 
-/* ================= LOAD ================= */
+/* ================= LOAD DATA ================= */
 async function loadData() {
   try {
-    const res = await fetch(API);
-    const json = await res.json();
+    const r = await fetch(API);
+    const j = await r.json();
 
-    people = Array.isArray(json.data) ? json.data : [];
-    render();
-    setupAutocompletes();
+    people = Array.isArray(j.data) ? j.data : [];
+    renderAll();
 
     liveStatus.textContent = "● Online";
     liveStatus.className = "online";
@@ -106,131 +94,81 @@ async function loadData() {
   }
 }
 
-/* ================= AUTOCOMPLETE ================= */
-function setupAutocompletes() {
-  setupAutocomplete(
-    nameInput,
-    assignSuggestions,
-    p => true,
-    p => {
-      nameInput.value = p.Name;
-      busSelect.value = p.Bus || "";
-    }
-  );
-
-  setupAutocomplete(
-    unassignInput,
-    unassignSuggestions,
-    p => p.Bus,
-    p => unassignInput.value = p.Name
-  );
-}
-
-function setupAutocomplete(input, box, conditionFn, selectFn) {
-  input.oninput = () => {
-    const q = input.value.toLowerCase();
+/* ================= AUTOCOMPLETE (BOUND ONCE) ================= */
+function bindAutocomplete(input, box, filterFn, selectFn) {
+  input.addEventListener("input", () => {
+    const q = input.value.trim().toLowerCase();
     box.innerHTML = "";
 
-    if (!q) {
-      box.style.display = "none";
-      return;
-    }
+    if (!q) return box.style.display = "none";
 
     const matches = people.filter(
-      p => p.Name && conditionFn(p) && p.Name.toLowerCase().includes(q)
+      p => p.Name && filterFn(p) && p.Name.toLowerCase().includes(q)
     );
 
-    if (!matches.length) {
-      box.style.display = "none";
-      return;
-    }
+    if (!matches.length) return box.style.display = "none";
 
     matches.slice(0, 15).forEach(p => {
-      const div = document.createElement("div");
-      div.innerHTML = highlightMatch(p.Name, q) +
-        (p.Bus ? ` <span class="bus-tag">Bus ${p.Bus}</span>` : "");
-      div.onclick = () => {
+      const d = document.createElement("div");
+      d.innerHTML = highlight(p.Name, q);
+      d.onclick = () => {
         selectFn(p);
         box.style.display = "none";
       };
-      box.appendChild(div);
+      box.appendChild(d);
     });
 
     box.style.display = "block";
-  };
+  });
 }
 
-function highlightMatch(text, q) {
+function highlight(text, q) {
   const i = text.toLowerCase().indexOf(q);
-  if (i === -1) return text;
-  return (
-    text.slice(0, i) +
-    "<mark>" +
-    text.slice(i, i + q.length) +
-    "</mark>" +
-    text.slice(i + q.length)
-  );
+  if (i < 0) return text;
+  return `${text.slice(0,i)}<mark>${text.slice(i,i+q.length)}</mark>${text.slice(i+q.length)}`;
 }
 
-document.addEventListener("click", e => {
-  if (!e.target.closest(".input-group")) {
-    assignSuggestions.style.display = "none";
-    unassignSuggestions.style.display = "none";
-  }
+/* Bind once */
+bindAutocomplete(nameInput, assignSuggestions, () => true, p => {
+  nameInput.value = p.Name;
+  busSelect.value = p.Bus || "";
 });
 
-/* ================= RENDER ================= */
-function render() {
-  const totalPeople = people.length;
-  const assignedPeople = people.filter(p => p.Bus).length;
+bindAutocomplete(unassignInput, unassignSuggestions, p => p.Bus, p => {
+  unassignInput.value = p.Name;
+});
 
-  total.textContent = totalPeople;
-  assigned.textContent = assignedPeople;
-  unassigned.textContent = totalPeople - assignedPeople;
-
-  const busCounts = {1:0,2:0,3:0,4:0,5:0};
-  people.forEach(p => {
-    if (busCounts[p.Bus]) busCounts[p.Bus]++;
-  });
-
-  b1.textContent = busCounts[1];
-  b2.textContent = busCounts[2];
-  b3.textContent = busCounts[3];
-  b4.textContent = busCounts[4];
-  b5.textContent = busCounts[5];
-
-  renderPie(busCounts, totalPeople - assignedPeople);
-  renderBusList(busCounts);
+/* ================= RENDER ALL ================= */
+function renderAll() {
+  renderSummary();
+  renderPie();
+  renderBusList();
 }
 
-function renderBusList() {
-  const map = {};
-  people.forEach(p => {
-    const k = p.Bus ? `Bus ${p.Bus}` : "Unassigned";
-    map[k] ??= [];
-    map[k].push(p.Name);
-  });
+/* SUMMARY */
+function renderSummary() {
+  const totalCount = people.length;
+  const assignedCount = people.filter(p => p.Bus).length;
 
-  busList.innerHTML = "";
-  Object.keys(map).forEach(b => {
-    busList.innerHTML += `
-      <div class="bus">
-        <strong>${b} (${map[b].length})</strong>
-        ${map[b].map(n => `<div>${n}</div>`).join("")}
-      </div>
-    `;
-  });
+  total.textContent = totalCount;
+  assigned.textContent = assignedCount;
+  unassigned.textContent = totalCount - assignedCount;
 }
 
-/* ================= PIE CHART ================= */
-function renderPie(busCounts, unassignedCount) {
+/* PIE */
+function renderPie() {
+  const counts = {
+    unassigned: people.filter(p => !p.Bus).length,
+    1: 0, 2: 0, 3: 0, 4: 0, 5: 0
+  };
+
+  people.forEach(p => {
+    if (counts[p.Bus] !== undefined) counts[p.Bus]++;
+  });
+
   const data = [
-    unassignedCount,
-    busCounts[1],
-    busCounts[2],
-    busCounts[3],
-    busCounts[4],
-    busCounts[5]
+    counts.unassigned,
+    counts[1], counts[2], counts[3], counts[4], counts[5]
   ];
 
   if (!pieChart) {
@@ -245,14 +183,32 @@ function renderPie(busCounts, unassignedCount) {
           ]
         }]
       },
-      options: {
-        plugins: { legend: { position: "bottom" } }
-      }
+      options: { plugins:{ legend:{ position:"bottom" } } }
     });
   } else {
     pieChart.data.datasets[0].data = data;
     pieChart.update();
   }
+}
+
+/* BUS LIST */
+function renderBusList() {
+  const map = {};
+  people.forEach(p => {
+    const k = p.Bus ? `Bus ${p.Bus}` : "Unassigned";
+    map[k] ??= [];
+    map[k].push(p.Name);
+  });
+
+  busList.innerHTML = "";
+  Object.keys(map).forEach(k => {
+    busList.innerHTML += `
+      <div class="bus">
+        <strong>${k} (${map[k].length})</strong>
+        ${map[k].map(n => `<div>${n}</div>`).join("")}
+      </div>
+    `;
+  });
 }
 
 /* ================= ACTIONS ================= */
@@ -268,11 +224,7 @@ function unassign() {
 
 function addPerson() {
   fetch(`${API}?action=add&name=${encodeURIComponent(newName.value)}&mobile=${encodeURIComponent(newMobile.value)}`)
-    .then(() => {
-      newName.value = "";
-      newMobile.value = "";
-      loadData();
-    });
+    .then(loadData);
 }
 
 /* ================= INIT ================= */
