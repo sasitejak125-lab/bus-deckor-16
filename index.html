@@ -18,26 +18,56 @@
   <h2>Smart Assignment Dashboard</h2>
 </header>
 
+<!-- Assign -->
 <div class="card">
-  <h3>Assign / Unassign</h3>
+  <h3>Assign Person</h3>
 
-  <div class="controls">
-    <input id="nameInput" placeholder="Search name">
-    <select id="busSelect">
-      <option value="">Bus</option>
-      <option value="1">Bus 1</option>
-      <option value="2">Bus 2</option>
-      <option value="3">Bus 3</option>
-      <option value="4">Bus 4</option>
-      <option value="5">Bus 5</option>
-    </select>
-    <button id="assignBtn">Assign</button>
-    <button id="unassignBtn">Unassign</button>
+  <div class="controls-container">
+    <div class="input-group">
+      <label>Name</label>
+      <input id="nameInput" type="text" placeholder="Type name..." autocomplete="off">
+      <div id="suggestions" class="suggestion-box"></div>
+    </div>
+
+    <div>
+      <label>Bus</label>
+      <select id="busSelect">
+        <option value="">Select Bus</option>
+        <option value="1">Bus 1</option>
+        <option value="2">Bus 2</option>
+        <option value="3">Bus 3</option>
+        <option value="4">Bus 4</option>
+        <option value="5">Bus 5</option>
+      </select>
+    </div>
+
+    <button id="assignBtn" class="success">Assign</button>
   </div>
 </div>
 
+<!-- Unassign -->
+<div class="card">
+  <h3>Unassign Person</h3>
+
+  <div class="controls-container">
+    <div class="input-group">
+      <label>Name</label>
+      <input id="unassignInput" type="text" placeholder="Search assigned..." autocomplete="off">
+      <div id="unassignSuggestions" class="suggestion-box"></div>
+    </div>
+
+    <div>
+      <label>Current Bus</label>
+      <input id="currentBus" disabled>
+    </div>
+
+    <button id="unassignBtn" class="danger">Unassign</button>
+  </div>
+</div>
+
+<!-- Summary -->
 <div class="card summary">
-  <div>
+  <div class="metrics">
     <div>Total: <span id="total">0</span></div>
     <div>Assigned: <span id="assigned">0</span></div>
     <div>Unassigned: <span id="unassigned">0</span></div>
@@ -45,19 +75,29 @@
   <canvas id="pieChart" width="120" height="120"></canvas>
 </div>
 
+<!-- Bus Grid -->
 <div class="card">
   <h3>Bus Details</h3>
   <div id="busGrid" class="bus-grid"></div>
 </div>
 
 <script>
+/* ---------------- CONFIG ---------------- */
 const DEFAULT_EXCEL = "people.xlsx";
+
+/* ---------------- STATE ---------------- */
 let people = [];
 let chart;
 
+/* ---------------- ELEMENTS ---------------- */
 const nameInput = document.getElementById("nameInput");
+const suggestions = document.getElementById("suggestions");
 const busSelect = document.getElementById("busSelect");
 const assignBtn = document.getElementById("assignBtn");
+
+const unassignInput = document.getElementById("unassignInput");
+const unassignSuggestions = document.getElementById("unassignSuggestions");
+const currentBus = document.getElementById("currentBus");
 const unassignBtn = document.getElementById("unassignBtn");
 
 const totalEl = document.getElementById("total");
@@ -66,32 +106,127 @@ const unassignedEl = document.getElementById("unassigned");
 const busGrid = document.getElementById("busGrid");
 const pieCanvas = document.getElementById("pieChart");
 
-/* ---------- LOAD DEFAULT EXCEL ---------- */
+/* ---------------- LOAD EXCEL ---------------- */
 async function loadExcel() {
-  const res = await fetch(DEFAULT_EXCEL);
-  const buf = await res.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array" });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
-  people = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-  render();
+  try {
+    const res = await fetch(DEFAULT_EXCEL);
+    if (!res.ok) throw new Error("Excel not found");
+
+    const buf = await res.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array" });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    people = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+    console.log("People loaded:", people.length);
+    render();
+  } catch (e) {
+    console.error("Excel load failed:", e);
+    alert("Default Excel not loaded. Check console.");
+  }
 }
 
-/* ---------- ASSIGN / UNASSIGN ---------- */
+/* ---------------- AUTOCOMPLETE (ASSIGN) ---------------- */
+nameInput.oninput = () => {
+  const q = nameInput.value.trim().toLowerCase();
+  suggestions.innerHTML = "";
+
+  if (!q) {
+    suggestions.style.display = "none";
+    return;
+  }
+
+  const matches = people.filter(p =>
+    p.Name && p.Name.toLowerCase().includes(q)
+  );
+
+  if (!matches.length) {
+    suggestions.style.display = "none";
+    return;
+  }
+
+  matches.slice(0, 15).forEach(p => {
+    const d = document.createElement("div");
+    d.textContent = p.Name;
+    d.onclick = () => {
+      nameInput.value = p.Name;
+      busSelect.value = p.Bus || "";
+      suggestions.style.display = "none";
+    };
+    suggestions.appendChild(d);
+  });
+
+  suggestions.style.display = "block";
+};
+
+/* ---------------- AUTOCOMPLETE (UNASSIGN) ---------------- */
+unassignInput.oninput = () => {
+  const q = unassignInput.value.trim().toLowerCase();
+  unassignSuggestions.innerHTML = "";
+  currentBus.value = "";
+
+  if (!q) {
+    unassignSuggestions.style.display = "none";
+    return;
+  }
+
+  const matches = people.filter(p =>
+    p.Bus && p.Name.toLowerCase().includes(q)
+  );
+
+  if (!matches.length) {
+    unassignSuggestions.style.display = "none";
+    return;
+  }
+
+  matches.slice(0, 15).forEach(p => {
+    const d = document.createElement("div");
+    d.textContent = `${p.Name} (Bus ${p.Bus})`;
+    d.onclick = () => {
+      unassignInput.value = p.Name;
+      currentBus.value = `Bus ${p.Bus}`;
+      unassignSuggestions.style.display = "none";
+    };
+    unassignSuggestions.appendChild(d);
+  });
+
+  unassignSuggestions.style.display = "block";
+};
+
+/* ---------------- ASSIGN ---------------- */
 assignBtn.onclick = () => {
-  const p = people.find(x => x.Name.toLowerCase() === nameInput.value.toLowerCase());
-  if (!p || !busSelect.value) return alert("Invalid input");
+  const p = people.find(x =>
+    x.Name.toLowerCase() === nameInput.value.toLowerCase()
+  );
+
+  if (!p || !busSelect.value) {
+    alert("Select valid name and bus");
+    return;
+  }
+
   p.Bus = busSelect.value;
+  nameInput.value = "";
+  busSelect.value = "";
   render();
 };
 
+/* ---------------- UNASSIGN ---------------- */
 unassignBtn.onclick = () => {
-  const p = people.find(x => x.Name.toLowerCase() === nameInput.value.toLowerCase());
-  if (!p) return alert("Not found");
+  const p = people.find(x =>
+    x.Name.toLowerCase() === unassignInput.value.toLowerCase()
+  );
+
+  if (!p || !p.Bus) {
+    alert("Person not assigned");
+    return;
+  }
+
   p.Bus = "";
+  unassignInput.value = "";
+  currentBus.value = "";
   render();
 };
 
-/* ---------- RENDER ---------- */
+/* ---------------- RENDER ---------------- */
 function render() {
   const buses = {0:[],1:[],2:[],3:[],4:[],5:[]};
   people.forEach(p => buses[p.Bus || 0].push(p));
@@ -104,7 +239,7 @@ function render() {
   chart = new Chart(pieCanvas,{
     type:"pie",
     data:{
-      labels:["Unassigned","1","2","3","4","5"],
+      labels:["U","1","2","3","4","5"],
       datasets:[{
         data:[
           buses[0].length,
@@ -130,8 +265,17 @@ function render() {
   });
 }
 
+/* ---------------- HIDE DROPDOWNS ---------------- */
+document.addEventListener("click", e => {
+  if (!e.target.closest(".input-group")) {
+    suggestions.style.display = "none";
+    unassignSuggestions.style.display = "none";
+  }
+});
+
+/* ---------------- INIT ---------------- */
 loadExcel();
 </script>
+
 </body>
 </html>
-
