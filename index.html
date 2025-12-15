@@ -12,13 +12,18 @@
 
 <header>
   <h1>🚌 Bus Decker</h1>
-  <span id="liveStatus">● Offline</span>
+  <span id="liveStatus" class="offline">● Offline</span>
 </header>
 
 <!-- ASSIGN -->
 <section class="card">
   <h3>Assign Person</h3>
-  <input id="nameInput" placeholder="Name">
+
+  <div class="input-group">
+    <input id="nameInput" placeholder="Search name">
+    <div id="assignSuggestions" class="suggestion-box"></div>
+  </div>
+
   <select id="busSelect">
     <option value="">Select Bus</option>
     <option value="1">Bus 1</option>
@@ -27,13 +32,19 @@
     <option value="4">Bus 4</option>
     <option value="5">Bus 5</option>
   </select>
+
   <button onclick="assign()">Assign</button>
 </section>
 
 <!-- UNASSIGN -->
 <section class="card">
   <h3>Unassign Person</h3>
-  <input id="unassignInput" placeholder="Name">
+
+  <div class="input-group">
+    <input id="unassignInput" placeholder="Search assigned">
+    <div id="unassignSuggestions" class="suggestion-box"></div>
+  </div>
+
   <button class="danger" onclick="unassign()">Unassign</button>
 </section>
 
@@ -61,6 +72,7 @@ const API_URL =
   "https://script.google.com/macros/s/AKfycbzOwfnrdkY5_T6fPg4JYKpVi8YkZsts_Te_S0FyiKAsI1sJpiePh1JpDxXLJIS0fdnk5w/exec";
 
 /* ================= STATE ================= */
+let people = [];
 let lastUpdatedAt = "";
 
 /* ================= LOAD DATA ================= */
@@ -74,54 +86,106 @@ async function loadData() {
     }
 
     lastUpdatedAt = json.updatedAt;
-    render(json.data);
+    people = json.data;
 
+    render();
     setOnline();
   } catch (e) {
+    console.error("Fetch failed:", e);
     setOffline();
-    console.error("Load failed", e);
   }
 }
 
-/* ================= LIVE STATUS ================= */
-function showLiveUpdate() {
-  const s = document.getElementById("liveStatus");
-  s.textContent = "● Live update";
-  s.className = "live";
-  setTimeout(() => {
-    s.textContent = "● Online";
-    s.className = "online";
-  }, 2000);
-}
-
+/* ================= STATUS ================= */
 function setOnline() {
-  const s = document.getElementById("liveStatus");
-  s.textContent = "● Online";
-  s.className = "online";
+  liveStatus.textContent = "● Online";
+  liveStatus.className = "online";
 }
 
 function setOffline() {
-  const s = document.getElementById("liveStatus");
-  s.textContent = "● Offline";
-  s.className = "offline";
+  liveStatus.textContent = "● Offline";
+  liveStatus.className = "offline";
 }
 
+function showLiveUpdate() {
+  liveStatus.textContent = "● Live update";
+  liveStatus.className = "live";
+  setTimeout(setOnline, 2000);
+}
+
+/* ================= AUTOCOMPLETE ================= */
+function setupAutocomplete(input, box, filterFn, onSelect) {
+  input.addEventListener("input", () => {
+    const q = input.value.trim().toLowerCase();
+    box.innerHTML = "";
+
+    if (!q) {
+      box.style.display = "none";
+      return;
+    }
+
+    const matches = people.filter(filterFn(q));
+    if (!matches.length) {
+      box.style.display = "none";
+      return;
+    }
+
+    matches.slice(0, 15).forEach(p => {
+      const div = document.createElement("div");
+      div.textContent = p.Name + (p.Bus ? ` (Bus ${p.Bus})` : "");
+      div.onclick = () => {
+        onSelect(p);
+        box.style.display = "none";
+      };
+      box.appendChild(div);
+    });
+
+    box.style.display = "block";
+  });
+}
+
+/* Assign autocomplete */
+setupAutocomplete(
+  nameInput,
+  assignSuggestions,
+  q => p => p.Name.toLowerCase().includes(q),
+  p => {
+    nameInput.value = p.Name;
+    busSelect.value = p.Bus || "";
+  }
+);
+
+/* Unassign autocomplete */
+setupAutocomplete(
+  unassignInput,
+  unassignSuggestions,
+  q => p => p.Bus && p.Name.toLowerCase().includes(q),
+  p => {
+    unassignInput.value = p.Name;
+  }
+);
+
+/* Hide suggestions on outside click */
+document.addEventListener("click", e => {
+  if (!e.target.closest(".input-group")) {
+    assignSuggestions.style.display = "none";
+    unassignSuggestions.style.display = "none";
+  }
+});
+
 /* ================= RENDER ================= */
-function render(data) {
-  document.getElementById("total").textContent = data.length;
-  document.getElementById("assigned").textContent =
-    data.filter(p => p.Bus).length;
+function render() {
+  total.textContent = people.length;
+  assigned.textContent = people.filter(p => p.Bus).length;
 
   const buses = {};
-  data.forEach(p => {
+  people.forEach(p => {
     const key = p.Bus ? `Bus ${p.Bus}` : "Unassigned";
     buses[key] ??= [];
     buses[key].push(p.Name);
   });
 
-  const busList = document.getElementById("busList");
   busList.innerHTML = "";
-
   Object.keys(buses).forEach(bus => {
     busList.innerHTML += `
       <div class="bus">
@@ -134,11 +198,8 @@ function render(data) {
 
 /* ================= ACTIONS ================= */
 function assign() {
-  const name = nameInput.value.trim();
-  const bus = busSelect.value;
-
-  if (!name || !bus) {
-    alert("Enter name and bus");
+  if (!nameInput.value || !busSelect.value) {
+    alert("Select name and bus");
     return;
   }
 
@@ -146,8 +207,8 @@ function assign() {
     method: "POST",
     body: JSON.stringify({
       action: "assign",
-      name,
-      bus
+      name: nameInput.value,
+      bus: busSelect.value
     })
   }).then(() => {
     nameInput.value = "";
@@ -157,9 +218,8 @@ function assign() {
 }
 
 function unassign() {
-  const name = unassignInput.value.trim();
-  if (!name) {
-    alert("Enter name");
+  if (!unassignInput.value) {
+    alert("Select name");
     return;
   }
 
@@ -167,7 +227,7 @@ function unassign() {
     method: "POST",
     body: JSON.stringify({
       action: "unassign",
-      name
+      name: unassignInput.value
     })
   }).then(() => {
     unassignInput.value = "";
@@ -176,10 +236,7 @@ function unassign() {
 }
 
 function addPerson() {
-  const name = newName.value.trim();
-  const mobile = newMobile.value.trim();
-
-  if (!name) {
+  if (!newName.value) {
     alert("Name required");
     return;
   }
@@ -188,8 +245,8 @@ function addPerson() {
     method: "POST",
     body: JSON.stringify({
       action: "add",
-      name,
-      mobile
+      name: newName.value,
+      mobile: newMobile.value
     })
   }).then(() => {
     newName.value = "";
@@ -200,9 +257,8 @@ function addPerson() {
 
 /* ================= INIT ================= */
 loadData();
-setInterval(loadData, 5000); // live refresh every 5s
+setInterval(loadData, 5000);
 </script>
 
 </body>
 </html>
-
