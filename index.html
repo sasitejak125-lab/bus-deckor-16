@@ -81,6 +81,10 @@ async function loadData() {
     const res = await fetch(API_URL);
     const json = await res.json();
 
+    if (!json || !Array.isArray(json.data)) {
+      throw new Error("Invalid data format");
+    }
+
     if (lastUpdatedAt && lastUpdatedAt !== json.updatedAt) {
       showLiveUpdate();
     }
@@ -88,10 +92,10 @@ async function loadData() {
     lastUpdatedAt = json.updatedAt;
     people = json.data;
 
-    render();
+    render();      // 🔥 render uses global people[]
     setOnline();
   } catch (e) {
-    console.error("Fetch failed:", e);
+    console.error("Fetch/render failed:", e);
     setOffline();
   }
 }
@@ -119,12 +123,15 @@ function setupAutocomplete(input, box, filterFn, onSelect) {
     const q = input.value.trim().toLowerCase();
     box.innerHTML = "";
 
-    if (!q) {
+    if (!q || people.length === 0) {
       box.style.display = "none";
       return;
     }
 
-    const matches = people.filter(filterFn(q));
+    const matches = people.filter(p =>
+      p.Name && filterFn(p, q)
+    );
+
     if (!matches.length) {
       box.style.display = "none";
       return;
@@ -148,7 +155,7 @@ function setupAutocomplete(input, box, filterFn, onSelect) {
 setupAutocomplete(
   nameInput,
   assignSuggestions,
-  q => p => p.Name.toLowerCase().includes(q),
+  (p, q) => p.Name.toLowerCase().includes(q),
   p => {
     nameInput.value = p.Name;
     busSelect.value = p.Bus || "";
@@ -159,13 +166,13 @@ setupAutocomplete(
 setupAutocomplete(
   unassignInput,
   unassignSuggestions,
-  q => p => p.Bus && p.Name.toLowerCase().includes(q),
+  (p, q) => p.Bus && p.Name.toLowerCase().includes(q),
   p => {
     unassignInput.value = p.Name;
   }
 );
 
-/* Hide suggestions on outside click */
+/* Hide dropdowns */
 document.addEventListener("click", e => {
   if (!e.target.closest(".input-group")) {
     assignSuggestions.style.display = "none";
@@ -175,6 +182,9 @@ document.addEventListener("click", e => {
 
 /* ================= RENDER ================= */
 function render() {
+  // 🔥 Defensive guard
+  if (!Array.isArray(people)) return;
+
   total.textContent = people.length;
   assigned.textContent = people.filter(p => p.Bus).length;
 
@@ -210,11 +220,7 @@ function assign() {
       name: nameInput.value,
       bus: busSelect.value
     })
-  }).then(() => {
-    nameInput.value = "";
-    busSelect.value = "";
-    loadData();
-  });
+  }).then(loadData);
 }
 
 function unassign() {
@@ -229,10 +235,7 @@ function unassign() {
       action: "unassign",
       name: unassignInput.value
     })
-  }).then(() => {
-    unassignInput.value = "";
-    loadData();
-  });
+  }).then(loadData);
 }
 
 function addPerson() {
