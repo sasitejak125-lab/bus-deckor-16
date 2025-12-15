@@ -81,15 +81,29 @@ button.danger{
   background:#f3f4f6;
 }
 
+mark{
+  background:#fde68a;
+  padding:0 2px;
+}
+
+.bus-tag{
+  font-size:.75rem;
+  color:#2563eb;
+  margin-left:6px;
+}
+
+.bus-summary{
+  margin:8px 0;
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:6px;
+  font-size:.9rem;
+}
+
 .bus{
   background:white;
   padding:12px;
   border-radius:12px;
   margin-bottom:10px;
   box-shadow:0 2px 8px rgba(0,0,0,.06);
-}
-
-.bus strong{
-  display:block;
-  margin-bottom:6px;
 }
